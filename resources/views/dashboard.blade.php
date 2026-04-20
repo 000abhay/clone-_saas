@@ -1,3 +1,6 @@
+@include('crm.index')
+@php return; @endphp
+
 <!DOCTYPE html>
 <html lang="en">
 <head>

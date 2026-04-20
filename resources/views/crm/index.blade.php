@@ -425,6 +425,121 @@
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
 
+        .pricing-grid,
+        .integration-grid,
+        .settings-stack {
+            display: grid;
+            gap: 18px;
+        }
+
+        .pricing-grid {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        .plan-card,
+        .integration-card,
+        .setting-card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .plan-card.featured {
+            border-color: rgba(39, 152, 255, 0.75);
+            box-shadow: inset 0 0 0 1px rgba(39, 152, 255, 0.18);
+        }
+
+        .plan-price {
+            margin: 16px 0;
+            font-size: 2rem;
+            font-weight: 800;
+        }
+
+        .plan-price span {
+            font-size: 1rem;
+            font-weight: 400;
+            color: var(--muted);
+        }
+
+        .feature-list {
+            display: grid;
+            gap: 10px;
+            margin-top: 18px;
+            color: #dbe4ec;
+        }
+
+        .integration-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .integration-card {
+            min-height: 170px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .settings-stack {
+            max-width: 780px;
+        }
+
+        .performance-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .search-box {
+            width: min(100%, 380px);
+            padding: 12px 14px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: #1a1a1a;
+            color: var(--text);
+        }
+
+        .account-chip {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: var(--text);
+        }
+
+        .avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, var(--blue), #13d4be);
+        }
+
+        .funnel {
+            display: grid;
+            gap: 0;
+            margin-top: 12px;
+        }
+
+        .funnel-step {
+            margin: 0 auto;
+            height: 46px;
+            clip-path: polygon(10% 0, 90% 0, 80% 100%, 20% 100%);
+        }
+
+        .progress {
+            margin-top: 10px;
+            height: 6px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            overflow: hidden;
+        }
+
+        .progress > span {
+            display: block;
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, #14d4be, #2f8fff);
+        }
+
         .field {
             display: grid;
             gap: 8px;
@@ -474,7 +589,10 @@
             .bottom-grid,
             .report-grid,
             .customer-grid,
-            .kanban {
+            .kanban,
+            .pricing-grid,
+            .integration-grid,
+            .performance-grid {
                 grid-template-columns: 1fr;
             }
         }
@@ -510,10 +628,15 @@
             'support' => 'Support Tickets',
             'reports' => 'Analytics',
             'team' => 'Team Management',
+            'billing' => 'Subscriptions',
+            'integrations' => 'Integrations',
+            'settings' => 'Settings',
         ];
 
         $headerActions = [
-            'dashboard' => [['label' => 'Export Report', 'type' => 'ghost']],
+            'dashboard' => $user->role === 'sales_manager'
+                ? [['label' => 'Team Performance Overview', 'type' => 'ghost']]
+                : ($user->role === 'sales_exec' ? [] : [['label' => 'Export Report', 'type' => 'ghost']]),
             'leads' => [['label' => 'Filter', 'type' => 'ghost'], ['label' => 'Export', 'type' => 'ghost'], ['label' => 'Add Lead', 'type' => 'primary']],
             'customers' => [['label' => 'Add Customer', 'type' => 'primary']],
             'pipeline' => [['label' => 'New Deal', 'type' => 'primary']],
@@ -521,6 +644,9 @@
             'support' => [['label' => 'New Ticket', 'type' => 'primary']],
             'reports' => [['label' => 'Date Range', 'type' => 'ghost'], ['label' => 'Export', 'type' => 'ghost']],
             'team' => [['label' => 'Add Member', 'type' => 'primary']],
+            'billing' => [],
+            'integrations' => [],
+            'settings' => [],
         ][$section] ?? [];
 
         $roleClass = fn ($role) => 'badge badge-role-' . $role;
@@ -540,7 +666,7 @@
 
             <div class="nav-group">
                 @foreach ($navItems as $item)
-                    <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="{{ route($item['route']) }}">
+                    <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="/{{ $item['route'] === 'dashboard' ? 'dashboard' : $item['route'] }}">
                         <span>{{ $item['label'] }}</span>
                     </a>
                 @endforeach
@@ -549,11 +675,13 @@
             <div class="spacer"></div>
 
             <div class="nav-group">
-                <div class="nav-label">SaaS</div>
-                <a class="nav-link" href="#">Billing</a>
-                <a class="nav-link" href="#">Integrations</a>
-                <a class="nav-link" href="#">Settings</a>
-                <form method="POST" action="{{ route('logout') }}">
+                @if (count($saasNavItems))
+                    <div class="nav-label">SaaS</div>
+                    @foreach ($saasNavItems as $item)
+                        <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="/{{ $item['route'] }}">{{ $item['label'] }}</a>
+                    @endforeach
+                @endif
+                <form method="POST" action="/logout">
                     @csrf
                     <button type="submit" class="nav-link" style="width:100%; border:0; background:none; text-align:left; cursor:pointer;">Logout</button>
                 </form>
@@ -562,8 +690,21 @@
 
         <main class="main">
             <header class="topbar">
-                <div class="page-title">{{ $sectionTitles[$section] ?? 'CRM' }}</div>
+                @if ($user->role === 'sales_exec')
+                    <input class="search-box" type="text" value="" placeholder="Search leads, deals, contacts...">
+                @else
+                    <div class="page-title">{{ $sectionTitles[$section] ?? 'CRM' }}</div>
+                @endif
                 <div class="toolbar">
+                    @if ($user->role === 'sales_exec')
+                        <div class="account-chip">
+                            <div style="text-align:right;">
+                                <div style="font-weight:700;">Sales Executive</div>
+                                <div class="muted">Your Account</div>
+                            </div>
+                            <div class="avatar"></div>
+                        </div>
+                    @endif
                     @foreach ($headerActions as $action)
                         <button class="{{ $action['type'] === 'primary' ? 'primary-btn' : 'ghost-btn' }}" type="button">{{ $action['label'] }}</button>
                     @endforeach
@@ -585,13 +726,111 @@
                         <section class="stats-grid">
                             @foreach ($stats as $stat)
                                 <article class="panel">
-                                    <span class="stat-change">{{ $stat['change'] }}</span>
+                                    @if ($stat['change'] !== '')
+                                        <span class="stat-change">{{ $stat['change'] }}</span>
+                                    @endif
                                     <div class="muted">{{ $stat['label'] }}</div>
                                     <div class="stat-value">{{ $stat['value'] }}</div>
                                 </article>
                             @endforeach
                         </section>
 
+                        @if ($user->role === 'sales_manager')
+                            <section class="dashboard-grid">
+                                <article class="panel">
+                                    <h3 class="panel-title">Team Revenue Performance</h3>
+                                    <svg class="chart-svg" viewBox="0 0 640 290" xmlns="http://www.w3.org/2000/svg">
+                                        <line x1="60" y1="20" x2="60" y2="240" stroke="#666" />
+                                        <line x1="60" y1="240" x2="610" y2="240" stroke="#666" />
+                                        @foreach ([0, 1, 2, 3] as $index)
+                                            @php $x = 110 + ($index * 120); @endphp
+                                            <rect x="{{ $x }}" y="{{ [40, 95, 60, 60][$index] }}" width="48" height="{{ [130, 75, 110, 110][$index] }}" fill="#7bb8e6" />
+                                            <rect x="{{ $x + 52 }}" y="{{ [95, 95, 95, 95][$index] }}" width="48" height="{{ [75, 75, 75, 75][$index] }}" fill="#7a2de2" />
+                                        @endforeach
+                                    </svg>
+                                </article>
+
+                                <article class="panel">
+                                    <h3 class="panel-title">Pipeline Status</h3>
+                                    <div class="region-visual" style="background: conic-gradient(#7bb8e6 0 35%, #7a2de2 35% 63%, #3b82f6 63% 85%, #06b6d4 85% 100%);"></div>
+                                    <div class="legend">
+                                        <div class="legend-item"><strong>Prospecting 35%</strong></div>
+                                        <div class="legend-item"><strong>Qualified 28%</strong></div>
+                                        <div class="legend-item"><strong>Proposal 22%</strong></div>
+                                        <div class="legend-item"><strong>Negotiation 15%</strong></div>
+                                    </div>
+                                </article>
+                            </section>
+
+                            <section class="panel">
+                                <h3 class="panel-title">Team Member Performance</h3>
+                                <div class="performance-grid">
+                                    @foreach ($salesManagerPerformance as $member)
+                                        <article class="card-mini">
+                                            <div style="display:flex; justify-content:space-between; gap:12px;">
+                                                <strong>{{ $member['name'] }}</strong>
+                                                <span class="badge badge-status-active">{{ $member['deals'] }} deals</span>
+                                            </div>
+                                            <div class="muted" style="margin-top:12px;">Revenue: <strong style="color:var(--text);">{{ $member['revenue'] }}</strong></div>
+                                            <div class="muted">Target: <strong style="color:var(--text);">{{ $member['target'] }}</strong></div>
+                                            <div class="progress"><span style="width: {{ $member['progress'] }}%"></span></div>
+                                        </article>
+                                    @endforeach
+                                </div>
+                            </section>
+                        @elseif ($user->role === 'sales_exec')
+                            <section>
+                                <h1 style="margin: 0 0 6px;">Dashboard</h1>
+                                <p>Welcome back! Here's your business overview.</p>
+                            </section>
+
+                            <section class="dashboard-grid">
+                                <article class="panel">
+                                    <h3 class="panel-title">Revenue Trend</h3>
+                                    <svg class="chart-svg" viewBox="0 0 640 290" xmlns="http://www.w3.org/2000/svg">
+                                        <line x1="60" y1="20" x2="60" y2="240" stroke="#666" />
+                                        <line x1="60" y1="240" x2="610" y2="240" stroke="#666" />
+                                        <polyline fill="none" stroke="#7bb8e6" stroke-width="3" points="60,190 170,150 280,170 390,110 500,120 610,90" />
+                                        <polyline fill="none" stroke="#9b4dff" stroke-width="2" stroke-dasharray="6 6" points="60,150 170,150 280,150 390,150 500,150 610,150" />
+                                    </svg>
+                                </article>
+                                <article class="panel">
+                                    <h3 class="panel-title">Lead Sources</h3>
+                                    <div class="region-visual" style="background: conic-gradient(#7bb8e6 0 35%, #7a2de2 35% 60%, #3b82f6 60% 80%, #06b6d4 80% 95%, #8b5cf6 95% 100%);"></div>
+                                    <div class="legend">
+                                        <div class="legend-item"><strong>Direct 35%</strong></div>
+                                        <div class="legend-item"><strong>Referral 25%</strong></div>
+                                        <div class="legend-item"><strong>Social 20%</strong></div>
+                                        <div class="legend-item"><strong>Email 15%</strong></div>
+                                        <div class="legend-item"><strong>Other 5%</strong></div>
+                                    </div>
+                                </article>
+                            </section>
+
+                            <section class="dashboard-grid">
+                                <article class="panel">
+                                    <h3 class="panel-title">Sales Funnel</h3>
+                                    <div class="funnel">
+                                        <div class="funnel-step" style="width: 92%; background:#7bb8e6;"></div>
+                                        <div class="funnel-step" style="width: 68%; background:#7a2de2;"></div>
+                                        <div class="funnel-step" style="width: 46%; background:#3b82f6;"></div>
+                                        <div class="funnel-step" style="width: 28%; background:#06b6d4;"></div>
+                                    </div>
+                                </article>
+                                <article class="panel">
+                                    <h3 class="panel-title">Recent Activity</h3>
+                                    <div class="simple-list">
+                                        @foreach ($salesExecActivity as $item)
+                                            <div class="company-item">
+                                                <strong>{{ $item['name'] }}</strong>
+                                                <div class="muted">{{ $item['detail'] }}</div>
+                                                <div class="muted">{{ $item['time'] }}</div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </article>
+                            </section>
+                        @else
                         <section class="dashboard-grid">
                             <article class="panel">
                                 <h3 class="panel-title">User Growth &amp; Adoption</h3>
@@ -658,6 +897,7 @@
                                 </div>
                             </article>
                         </section>
+                        @endif
                     </div>
                 @endif
 
@@ -936,7 +1176,7 @@
                                     <div class="error-box">{{ $errors->first() }}</div>
                                 @endif
 
-                                <form method="POST" action="{{ route('team.members.store') }}">
+                                <form method="POST" action="/team/members">
                                     @csrf
                                     <div class="form-grid">
                                         <label class="field">
@@ -972,6 +1212,155 @@
                                 </form>
                             </article>
                         @endif
+                    </section>
+                @endif
+
+                @if ($section === 'billing')
+                    <section class="section-grid">
+                        <section>
+                            <h2>Choose Your Plan</h2>
+                            <div class="pricing-grid">
+                                @foreach ($billingPlans as $plan)
+                                    <article class="plan-card {{ $plan['featured'] ? 'featured' : '' }}">
+                                        @if ($plan['featured'])
+                                            <span class="badge" style="background: linear-gradient(90deg, var(--blue), #13d4be); color:#031117;">POPULAR</span>
+                                        @endif
+                                        <h3 style="margin:12px 0 6px;">{{ $plan['name'] }}</h3>
+                                        <div class="muted">{{ $plan['subtitle'] }}</div>
+                                        <div class="plan-price">{{ $plan['price'] }}<span>{{ $plan['period'] }}</span></div>
+                                        <button class="{{ $plan['current'] ? 'primary-btn' : 'ghost-btn' }}" type="button" style="width:100%;">{{ $plan['button'] }}</button>
+                                        <div class="feature-list">
+                                            @foreach ($plan['features'] as $feature)
+                                                <div>{{ $feature }}</div>
+                                            @endforeach
+                                        </div>
+                                    </article>
+                                @endforeach
+                            </div>
+                        </section>
+
+                        <section class="panel">
+                            <h2 style="margin-top:0;">Billing History</h2>
+                            <div class="table-wrap">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Invoice ID</th>
+                                            <th>Date</th>
+                                            <th>Amount</th>
+                                            <th>Status</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach ($billingHistory as $invoice)
+                                            <tr>
+                                                <td><strong>{{ $invoice['invoice'] }}</strong></td>
+                                                <td class="muted">{{ $invoice['date'] }}</td>
+                                                <td><strong>{{ $invoice['amount'] }}</strong></td>
+                                                <td><span class="badge badge-status-active">{{ $invoice['status'] }}</span></td>
+                                                <td style="color: var(--teal);">Download</td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        </section>
+                    </section>
+                @endif
+
+                @if ($section === 'integrations')
+                    <section class="section-grid">
+                        <h2>Connect Your Tools</h2>
+                        <div class="integration-grid">
+                            @foreach ($integrations as $integration)
+                                <article class="integration-card">
+                                    <div>
+                                        <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start;">
+                                            <h3 style="margin:0;">{{ $integration['name'] }}</h3>
+                                            @if ($integration['status'])
+                                                <span class="badge badge-status-active">{{ $integration['status'] }}</span>
+                                            @endif
+                                        </div>
+                                        <div class="muted" style="margin-top:8px;">{{ $integration['desc'] }}</div>
+                                    </div>
+                                    <button class="{{ $integration['action'] === 'Connect' ? 'primary-btn' : 'ghost-btn' }}" type="button" style="width:100%;">{{ $integration['action'] }}</button>
+                                </article>
+                            @endforeach
+                        </div>
+                    </section>
+                @endif
+
+                @if ($section === 'settings')
+                    <section class="settings-stack">
+                        <article class="setting-card">
+                            <h2 style="margin-top:0;">Account</h2>
+                            <div class="form-grid">
+                                <label class="field">
+                                    <span>Full Name</span>
+                                    <input type="text" value="{{ $settingsData['account']['name'] }}">
+                                </label>
+                                <label class="field">
+                                    <span>Email</span>
+                                    <input type="email" value="{{ $settingsData['account']['email'] }}">
+                                </label>
+                                <label class="field full">
+                                    <span>Role</span>
+                                    <input type="text" value="{{ $settingsData['account']['role'] }}">
+                                </label>
+                            </div>
+                            <div style="margin-top:16px;">
+                                <button class="primary-btn" type="button">Save Changes</button>
+                            </div>
+                        </article>
+
+                        <article class="setting-card">
+                            <h2 style="margin-top:0;">Security</h2>
+                            <div class="section-grid">
+                                <label class="field">
+                                    <span>Current Password</span>
+                                    <input type="password" placeholder="Enter current password">
+                                </label>
+                                <label class="field">
+                                    <span>New Password</span>
+                                    <input type="password" placeholder="Enter new password">
+                                </label>
+                                <label class="field">
+                                    <span>Confirm Password</span>
+                                    <input type="password" placeholder="Confirm new password">
+                                </label>
+                            </div>
+                            <div style="margin-top:16px;">
+                                <button class="primary-btn" type="button">Update Password</button>
+                            </div>
+                        </article>
+
+                        <article class="setting-card">
+                            <h2 style="margin-top:0;">API Keys</h2>
+                            <div class="muted" style="margin-bottom:16px;">Manage API keys for integrations</div>
+                            <div class="card-mini">
+                                <div style="display:flex; justify-content:space-between; gap:12px;">
+                                    <strong>Production API Key</strong>
+                                    <span style="color: var(--teal);">Copy</span>
+                                </div>
+                                <div class="muted" style="margin-top:12px;">{{ $settingsData['api_key'] }}</div>
+                            </div>
+                            <div style="margin-top:16px;">
+                                <button class="ghost-btn" type="button">Generate New Key</button>
+                            </div>
+                        </article>
+
+                        <article class="setting-card">
+                            <h2 style="margin-top:0;">Notifications</h2>
+                            <div class="section-grid">
+                                @foreach ($settingsData['notifications'] as $notification)
+                                    <label class="card-mini" style="display:flex; align-items:center; gap:12px;">
+                                        <input type="checkbox" {{ $notification['enabled'] ? 'checked' : '' }}>
+                                        <span>{{ $notification['label'] }}</span>
+                                    </label>
+                                @endforeach
+                            </div>
+                        </article>
                     </section>
                 @endif
             </div>

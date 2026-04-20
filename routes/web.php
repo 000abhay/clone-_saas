@@ -19,6 +19,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/support', [CrmController::class, 'support'])->name('support');
     Route::get('/reports', [CrmController::class, 'reports'])->name('reports');
     Route::get('/team', [CrmController::class, 'team'])->name('team');
+    Route::get('/billing', [CrmController::class, 'billing'])->name('billing');
+    Route::get('/integrations', [CrmController::class, 'integrations'])->name('integrations');
+    Route::get('/settings', [CrmController::class, 'settings'])->name('settings');
     Route::post('/team/members', [CrmController::class, 'storeMember'])->name('team.members.store');
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 });

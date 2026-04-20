@@ -232,7 +232,7 @@
                     <div class="error">{{ $errors->first() }}</div>
                 @endif
 
-                <form method="POST" action="{{ route('login.attempt') }}">
+                <form method="POST" action="/login">
                     @csrf
 
                     <div class="field">

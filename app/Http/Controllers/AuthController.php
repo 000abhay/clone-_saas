@@ -4,21 +4,22 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
 class AuthController extends Controller
 {
-    public function showLogin(): View|RedirectResponse
+    public function showLogin(): View|Response
     {
         if (Auth::check()) {
-            return redirect()->route('dashboard');
+            return response('', 302, ['Location' => '/dashboard']);
         }
 
         return view('auth.login');
     }
 
-    public function login(Request $request): RedirectResponse
+    public function login(Request $request): RedirectResponse|Response
     {
         $credentials = $request->validate([
             'email' => ['required', 'email'],
@@ -36,16 +37,20 @@ class AuthController extends Controller
         $request->session()->regenerate();
         $request->user()->forceFill(['last_active_at' => now()])->save();
 
-        return redirect()->intended(route('dashboard'));
+        if ($request->session()->pull('url.intended')) {
+            return response('', 302, ['Location' => '/dashboard']);
+        }
+
+        return response('', 302, ['Location' => '/dashboard']);
     }
 
-    public function logout(Request $request): RedirectResponse
+    public function logout(Request $request): Response
     {
         Auth::logout();
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('login');
+        return response('', 302, ['Location' => '/login']);
     }
 }
