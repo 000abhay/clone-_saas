@@ -2,37 +2,70 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
-#[Fillable([
-    'name',
-    'company',
-    'email',
-    'phone',
-    'status',
-    'value',
-    'contacted_at',
-    'customer_id',
-    'owner_id',
-])]
 class Lead extends Model
 {
+    use HasFactory;
+
+    protected $fillable = [
+        'first_name',
+        'last_name',
+        'company_name',
+        'email',
+        'phone',
+        'source',
+        'status',
+        'score',
+        'assigned_user_id',
+        'last_contacted_at',
+        'converted_at',
+        'notes',
+    ];
+
+    protected $appends = [
+        'full_name',
+    ];
+
     protected function casts(): array
     {
         return [
-            'contacted_at' => 'date',
+            'last_contacted_at' => 'datetime',
+            'converted_at' => 'datetime',
         ];
     }
 
-    public function customer(): BelongsTo
+    public function assignedUser(): BelongsTo
     {
-        return $this->belongsTo(Customer::class);
+        return $this->belongsTo(User::class, 'assigned_user_id');
     }
 
-    public function owner(): BelongsTo
+    public function contact(): HasOne
     {
-        return $this->belongsTo(User::class, 'owner_id');
+        return $this->hasOne(Contact::class);
+    }
+
+    public function activities(): MorphMany
+    {
+        return $this->morphMany(Activity::class, 'subject');
+    }
+
+    public function tasks(): MorphMany
+    {
+        return $this->morphMany(Task::class, 'related');
+    }
+
+    public function getFullNameAttribute(): string
+    {
+        return trim($this->first_name.' '.($this->last_name ?? ''));
+    }
+
+    public function isConverted(): bool
+    {
+        return $this->converted_at !== null;
     }
 }

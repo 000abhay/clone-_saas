@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>CodeVocado | Sign In</title>
+    <title>CRM Pro | Sign In</title>
     <style>
         :root {
             --bg: #05070b;
@@ -217,16 +217,16 @@
     <div class="shell">
         <header class="topbar">
             <div class="brand">
-                <div class="brand-mark">cv</div>
-                <span>CodeVocado</span>
+                <div class="brand-mark">cp</div>
+                <span>CRM Pro</span>
             </div>
-            <div class="topbar-note">Sign in to your account</div>
+            <div class="topbar-note">Real CRM workflows, role-aware operations</div>
         </header>
 
         <main class="content">
             <section class="card">
                 <h2>Sign In</h2>
-                <p>Use one of the seeded users from the backend to access the dashboard.</p>
+                <p>Use one of the seeded users from the database to access the CRM workspace.</p>
 
                 @if ($errors->any())
                     <div class="error">{{ $errors->first() }}</div>
@@ -266,14 +266,15 @@
                             <input id="remember" type="checkbox" name="remember" value="1" {{ old('remember') ? 'checked' : '' }}>
                             <span>Remember me</span>
                         </label>
-                        <span class="forgot-link">Role-based access enabled</span>
+                        <a class="forgot-link" href="{{ route('password.request') }}">Forgot password?</a>
                     </div>
 
                     <button class="btn" type="submit">Sign In</button>
                 </form>
 
                 <div class="credential-note">
-                    Default password for all seeded users: <strong>Password123!</strong>
+                    Default password for all seeded users: <strong>Password123!</strong><br>
+                    Account lockout is enabled after 5 failed attempts for 15 minutes.
                 </div>
             </section>
         </main>

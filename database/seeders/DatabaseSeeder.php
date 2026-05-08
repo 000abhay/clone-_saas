@@ -2,19 +2,20 @@
 
 namespace Database\Seeders;
 
-use App\Models\Customer;
+use App\Models\Account;
+use App\Models\Activity;
+use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Lead;
+use App\Models\PipelineStage;
 use App\Models\SupportTicket;
 use App\Models\Task;
 use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use App\Services\TicketSlaService;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
-    use WithoutModelEvents;
-
     /**
      * Seed the application's database.
      */
@@ -63,170 +64,344 @@ class DatabaseSeeder extends Seeder
             ],
         ];
 
-        $userMap = [];
-
-        foreach ($users as $user) {
-            $userMap[$user['email']] = User::updateOrCreate(
+        $userMap = collect($users)->mapWithKeys(function (array $user) {
+            $record = User::updateOrCreate(
                 ['email' => $user['email']],
+                array_merge($user, ['password' => 'Password123!']),
+            );
+
+            return [$user['email'] => $record];
+        });
+
+        $stageMap = collect([
+            ['name' => 'Prospect', 'order_column' => 1, 'probability' => 20],
+            ['name' => 'Qualified', 'order_column' => 2, 'probability' => 40],
+            ['name' => 'Proposal', 'order_column' => 3, 'probability' => 60],
+            ['name' => 'Negotiation', 'order_column' => 4, 'probability' => 80],
+            ['name' => 'Closed Won', 'order_column' => 5, 'probability' => 100],
+        ])->mapWithKeys(function (array $stage) {
+            $record = PipelineStage::updateOrCreate(
+                ['name' => $stage['name']],
                 [
-                    'name' => $user['name'],
-                    'role' => $user['role'],
-                    'profile_summary' => $user['profile_summary'],
-                    'status' => $user['status'],
-                    'last_active_at' => $user['last_active_at'],
-                    'password' => 'Password123!',
+                    'order_column' => $stage['order_column'],
+                    'probability' => $stage['probability'],
+                    'required_fields' => ['title', 'value', 'owner_id'],
+                    'is_active' => true,
                 ],
             );
-        }
 
-        $customers = [
+            return [strtolower(str_replace(' ', '_', $stage['name'])) => $record];
+        });
+
+        $accountMap = collect([
             [
                 'name' => 'Acme Corporation',
                 'industry' => 'Technology',
-                'location' => 'San Francisco, CA',
-                'email' => 'contact@acme.com',
+                'website' => 'https://acme.test',
+                'email' => 'ops@acme.test',
                 'phone' => '+1 (555) 111-2222',
-                'total_revenue' => 250000,
-                'active_deals' => 5,
+                'location' => 'San Francisco, CA',
+                'owner_id' => $userMap['james.sales@codevocado.com']->id,
                 'status' => 'active',
+                'notes' => 'Enterprise rollout target account.',
             ],
             [
                 'name' => 'Tech Solutions Inc',
                 'industry' => 'Software',
-                'location' => 'New York, NY',
-                'email' => 'info@techsol.com',
+                'website' => 'https://techsolutions.test',
+                'email' => 'hello@techsolutions.test',
                 'phone' => '+1 (555) 333-4444',
-                'total_revenue' => 120000,
-                'active_deals' => 3,
+                'location' => 'New York, NY',
+                'owner_id' => $userMap['emma.exec@codevocado.com']->id,
                 'status' => 'active',
+                'notes' => 'Strong expansion signal from product team.',
             ],
             [
                 'name' => 'Digital Ventures',
                 'industry' => 'Marketing',
-                'location' => 'Austin, TX',
-                'email' => 'hello@digitalventures.com',
+                'website' => 'https://digitalventures.test',
+                'email' => 'team@digitalventures.test',
                 'phone' => '+1 (555) 555-6666',
-                'total_revenue' => 85000,
-                'active_deals' => 2,
+                'location' => 'Austin, TX',
+                'owner_id' => $userMap['mike.manager@codevocado.com']->id,
                 'status' => 'active',
-            ],
-            [
-                'name' => 'Global Services Ltd',
-                'industry' => 'Consulting',
-                'location' => 'Chicago, IL',
-                'email' => 'contact@globalservices.com',
-                'phone' => '+1 (555) 777-8888',
-                'total_revenue' => 180000,
-                'active_deals' => 4,
-                'status' => 'active',
+                'notes' => 'High support activity and upsell opportunity.',
             ],
             [
                 'name' => 'Innovation Labs',
                 'industry' => 'Research',
-                'location' => 'Seattle, WA',
-                'email' => 'team@innolabs.com',
+                'website' => 'https://innovationlabs.test',
+                'email' => 'contact@innovationlabs.test',
                 'phone' => '+1 (555) 345-6789',
-                'total_revenue' => 156000,
-                'active_deals' => 1,
-                'status' => 'active',
+                'location' => 'Seattle, WA',
+                'owner_id' => $userMap['james.sales@codevocado.com']->id,
+                'status' => 'prospect',
+                'notes' => 'Late-stage proposal in security tooling.',
             ],
+        ])->mapWithKeys(function (array $account) {
+            $record = Account::updateOrCreate(['name' => $account['name']], $account);
+
+            return [$account['name'] => $record];
+        });
+
+        $leadMap = collect([
+            [
+                'first_name' => 'John',
+                'last_name' => 'Smith',
+                'company_name' => 'Tech Solutions Inc',
+                'email' => 'john@techsolutions.test',
+                'phone' => '+1 (555) 123-4567',
+                'source' => 'referral',
+                'status' => 'qualified',
+                'score' => 75,
+                'assigned_user_id' => $userMap['james.sales@codevocado.com']->id,
+                'last_contacted_at' => now()->subDays(2),
+                'notes' => 'Requested implementation timeline and migration plan.',
+            ],
+            [
+                'first_name' => 'Sarah',
+                'last_name' => 'Johnson',
+                'company_name' => 'Digital Ventures',
+                'email' => 'sarah@digitalventures.test',
+                'phone' => '+1 (555) 234-5678',
+                'source' => 'website',
+                'status' => 'new',
+                'score' => 45,
+                'assigned_user_id' => $userMap['emma.exec@codevocado.com']->id,
+                'last_contacted_at' => now()->subDay(),
+                'notes' => 'Inbound request from pricing page.',
+            ],
+            [
+                'first_name' => 'Priya',
+                'last_name' => 'Nair',
+                'company_name' => 'Green Horizon',
+                'email' => 'priya@greenhorizon.test',
+                'phone' => '+1 (555) 456-8899',
+                'source' => 'campaign',
+                'status' => 'working',
+                'score' => 55,
+                'assigned_user_id' => null,
+                'last_contacted_at' => null,
+                'notes' => 'Requires manual assignment for region coverage.',
+            ],
+            [
+                'first_name' => 'Lisa',
+                'last_name' => 'Anderson',
+                'company_name' => 'Acme Corporation',
+                'email' => 'lisa@acme.test',
+                'phone' => '+1 (555) 456-7890',
+                'source' => 'manual',
+                'status' => 'converted',
+                'score' => 82,
+                'assigned_user_id' => $userMap['emma.exec@codevocado.com']->id,
+                'last_contacted_at' => now()->subDays(4),
+                'converted_at' => now()->subDays(3),
+                'notes' => 'Converted after discovery call and demo approval.',
+            ],
+        ])->mapWithKeys(function (array $lead) {
+            $record = Lead::updateOrCreate(['email' => $lead['email']], $lead);
+
+            return [$lead['email'] => $record];
+        });
+
+        $contactMap = collect([
+            [
+                'name' => 'John Smith',
+                'account_id' => $accountMap['Tech Solutions Inc']->id,
+                'lead_id' => $leadMap['john@techsolutions.test']->id,
+                'owner_id' => $userMap['james.sales@codevocado.com']->id,
+                'email' => 'john@techsolutions.test',
+                'phone' => '+1 (555) 123-4567',
+                'job_title' => 'VP Operations',
+                'lifecycle_stage' => 'qualified',
+                'tags' => ['forecast', 'north-america'],
+                'custom_fields' => ['Preferred Channel' => 'Email'],
+                'notes' => 'Main economic buyer for implementation.',
+            ],
+            [
+                'name' => 'Lisa Anderson',
+                'account_id' => $accountMap['Acme Corporation']->id,
+                'lead_id' => $leadMap['lisa@acme.test']->id,
+                'owner_id' => $userMap['emma.exec@codevocado.com']->id,
+                'email' => 'lisa@acme.test',
+                'phone' => '+1 (555) 456-7890',
+                'job_title' => 'Revenue Operations Lead',
+                'lifecycle_stage' => 'customer',
+                'tags' => ['enterprise', 'champion'],
+                'custom_fields' => ['Renewal Window' => 'Q4'],
+                'notes' => 'Strong internal champion for rollout.',
+            ],
+            [
+                'name' => 'Maya Chen',
+                'account_id' => $accountMap['Innovation Labs']->id,
+                'lead_id' => null,
+                'owner_id' => $userMap['james.sales@codevocado.com']->id,
+                'email' => 'maya@innovationlabs.test',
+                'phone' => '+1 (555) 987-7788',
+                'job_title' => 'CTO',
+                'lifecycle_stage' => 'customer',
+                'tags' => ['security', 'renewal'],
+                'custom_fields' => ['Preferred Channel' => 'Phone'],
+                'notes' => 'Decision maker for security budget.',
+            ],
+        ])->mapWithKeys(function (array $contact) {
+            $record = Contact::updateOrCreate(['email' => $contact['email']], $contact);
+
+            return [$contact['email'] => $record];
+        });
+
+        $dealMap = collect([
+            [
+                'title' => 'Acme Enterprise Rollout',
+                'account_id' => $accountMap['Acme Corporation']->id,
+                'contact_id' => $contactMap['lisa@acme.test']->id,
+                'owner_id' => $userMap['emma.exec@codevocado.com']->id,
+                'stage_id' => $stageMap['proposal']->id,
+                'value' => 125000,
+                'currency' => 'USD',
+                'expected_close_date' => now()->addDays(18)->toDateString(),
+                'probability' => 60,
+                'status' => 'open',
+                'is_forecastable' => true,
+                'notes' => 'Awaiting procurement review.',
+            ],
+            [
+                'title' => 'Tech Solutions Expansion',
+                'account_id' => $accountMap['Tech Solutions Inc']->id,
+                'contact_id' => $contactMap['john@techsolutions.test']->id,
+                'owner_id' => $userMap['james.sales@codevocado.com']->id,
+                'stage_id' => $stageMap['qualified']->id,
+                'value' => 85000,
+                'currency' => 'USD',
+                'expected_close_date' => now()->addDays(30)->toDateString(),
+                'probability' => 40,
+                'status' => 'open',
+                'is_forecastable' => true,
+                'notes' => 'Scoping services package.',
+            ],
+            [
+                'title' => 'Innovation Labs Security Suite',
+                'account_id' => $accountMap['Innovation Labs']->id,
+                'contact_id' => $contactMap['maya@innovationlabs.test']->id,
+                'owner_id' => $userMap['james.sales@codevocado.com']->id,
+                'stage_id' => $stageMap['negotiation']->id,
+                'value' => 150000,
+                'currency' => 'USD',
+                'expected_close_date' => now()->addDays(10)->toDateString(),
+                'probability' => 80,
+                'status' => 'open',
+                'is_forecastable' => true,
+                'notes' => 'Security review complete, legal redlines pending.',
+            ],
+        ])->mapWithKeys(function (array $deal) {
+            $record = Deal::updateOrCreate(['title' => $deal['title']], $deal);
+
+            return [$deal['title'] => $record];
+        });
+
+        $ticketSlaService = app(TicketSlaService::class);
+
+        $ticketMap = collect([
+            [
+                'subject' => 'Payment gateway callbacks failing',
+                'account_id' => $accountMap['Acme Corporation']->id,
+                'contact_id' => $contactMap['lisa@acme.test']->id,
+                'assignee_id' => $userMap['david.support@codevocado.com']->id,
+                'priority' => 'high',
+                'status' => 'in_progress',
+                'description' => 'Customer reports webhook retries and duplicate invoices.',
+            ],
+            [
+                'subject' => 'CSV export formatting issue',
+                'account_id' => $accountMap['Tech Solutions Inc']->id,
+                'contact_id' => $contactMap['john@techsolutions.test']->id,
+                'assignee_id' => $userMap['david.support@codevocado.com']->id,
+                'priority' => 'medium',
+                'status' => 'open',
+                'description' => 'Exports need company and owner columns aligned.',
+            ],
+            [
+                'subject' => 'Dashboard latency complaint',
+                'account_id' => $accountMap['Digital Ventures']->id,
+                'contact_id' => null,
+                'assignee_id' => $userMap['david.support@codevocado.com']->id,
+                'priority' => 'urgent',
+                'status' => 'open',
+                'description' => 'Dashboard is taking 12 seconds to load for the support team.',
+            ],
+        ])->mapWithKeys(function (array $ticket) use ($ticketSlaService) {
+            $record = SupportTicket::create($ticket);
+            $ticketSlaService->applyDeadlines($record);
+
+            return [$record->subject => $record];
+        });
+
+        $ticketMap['Dashboard latency complaint']->forceFill([
+            'sla_response_due_at' => now()->subHours(3),
+            'sla_resolution_due_at' => now()->subHour(),
+            'breached_at' => now()->subMinutes(45),
+            'escalated_at' => now()->subMinutes(45),
+        ])->save();
+
+        Task::create([
+            'related_type' => Lead::class,
+            'related_id' => $leadMap['priya@greenhorizon.test']->id,
+            'assigned_user_id' => $userMap['mike.manager@codevocado.com']->id,
+            'title' => 'Assign Green Horizon lead',
+            'description' => 'Review territory ownership and assign to a sales executive.',
+            'due_date' => now()->addDay()->toDateString(),
+            'priority' => 'high',
+            'status' => 'pending',
+        ]);
+
+        Task::create([
+            'related_type' => Deal::class,
+            'related_id' => $dealMap['Innovation Labs Security Suite']->id,
+            'assigned_user_id' => $userMap['james.sales@codevocado.com']->id,
+            'title' => 'Send negotiation summary',
+            'description' => 'Package security review notes and updated pricing.',
+            'due_date' => now()->addDays(2)->toDateString(),
+            'priority' => 'urgent',
+            'status' => 'in_progress',
+        ]);
+
+        Task::create([
+            'related_type' => SupportTicket::class,
+            'related_id' => $ticketMap['Dashboard latency complaint']->id,
+            'assigned_user_id' => $userMap['david.support@codevocado.com']->id,
+            'title' => 'Collect performance traces',
+            'description' => 'Capture timings from affected support accounts.',
+            'due_date' => now()->subDay()->toDateString(),
+            'priority' => 'high',
+            'status' => 'pending',
+        ]);
+
+        Task::create([
+            'related_type' => Contact::class,
+            'related_id' => $contactMap['maya@innovationlabs.test']->id,
+            'assigned_user_id' => $userMap['sarah.admin@codevocado.com']->id,
+            'title' => 'Renewal prep brief',
+            'description' => 'Summarize security utilization ahead of renewal.',
+            'due_date' => now()->addWeek()->toDateString(),
+            'priority' => 'medium',
+            'status' => 'pending',
+        ]);
+
+        $activityRows = [
+            [$accountMap['Acme Corporation'], $userMap['sarah.admin@codevocado.com'], 'account.updated', 'Executive account flagged for rollout attention.'],
+            [$leadMap['john@techsolutions.test'], $userMap['james.sales@codevocado.com'], 'lead.updated', 'Qualification complete and moved into forecast review.'],
+            [$dealMap['Innovation Labs Security Suite'], $userMap['james.sales@codevocado.com'], 'deal.stage_changed', 'Moved into negotiation after technical sign-off.'],
+            [$ticketMap['Dashboard latency complaint'], $userMap['david.support@codevocado.com'], 'ticket.sla_breached', 'Escalated after missing the urgent response target.'],
         ];
 
-        $customerMap = [];
-
-        foreach ($customers as $customer) {
-            $customerMap[$customer['name']] = Customer::updateOrCreate(
-                ['email' => $customer['email']],
-                $customer,
-            );
-        }
-
-        $leads = [
-            ['name' => 'John Smith', 'company' => 'Tech Solutions Inc', 'email' => 'john@techsol.com', 'phone' => '+1 (555) 123-4567', 'status' => 'Qualified', 'value' => 50000, 'contacted_at' => '2024-03-10', 'owner' => 'james.sales@codevocado.com'],
-            ['name' => 'Sarah Johnson', 'company' => 'Digital Ventures', 'email' => 'sarah@digitalventures.com', 'phone' => '+1 (555) 234-5678', 'status' => 'New', 'value' => 35000, 'contacted_at' => '2024-03-12', 'owner' => 'emma.exec@codevocado.com'],
-            ['name' => 'Mike Chen', 'company' => 'Innovation Labs', 'email' => 'mike@innolabs.com', 'phone' => '+1 (555) 345-6789', 'status' => 'Proposal', 'value' => 75000, 'contacted_at' => '2024-03-08', 'owner' => 'james.sales@codevocado.com'],
-            ['name' => 'Lisa Anderson', 'company' => 'Global Services Ltd', 'email' => 'lisa@globalservices.com', 'phone' => '+1 (555) 456-7890', 'status' => 'Qualified', 'value' => 45000, 'contacted_at' => '2024-03-05', 'owner' => 'emma.exec@codevocado.com'],
-        ];
-
-        foreach ($leads as $lead) {
-            Lead::updateOrCreate(
-                ['email' => $lead['email']],
-                [
-                    'name' => $lead['name'],
-                    'company' => $lead['company'],
-                    'phone' => $lead['phone'],
-                    'status' => $lead['status'],
-                    'value' => $lead['value'],
-                    'contacted_at' => $lead['contacted_at'],
-                    'customer_id' => $customerMap[$lead['company']]->id ?? null,
-                    'owner_id' => $userMap[$lead['owner']]->id ?? null,
-                ],
-            );
-        }
-
-        $deals = [
-            ['title' => 'Acme Corp Enterprise Rollout', 'company' => 'Acme Corporation', 'stage' => 'prospect', 'value' => 50000],
-            ['title' => 'Custom Development', 'company' => 'Innovation Labs', 'stage' => 'prospect', 'value' => 75000],
-            ['title' => 'Tech Solutions Implementation', 'company' => 'Tech Solutions Inc', 'stage' => 'qualified', 'value' => 35000],
-            ['title' => 'Cloud Infrastructure', 'company' => 'Digital Ventures', 'stage' => 'qualified', 'value' => 60000],
-            ['title' => 'Digital Marketing Services', 'company' => 'Digital Ventures', 'stage' => 'proposal', 'value' => 25000],
-            ['title' => 'Security Software License', 'company' => 'Global Services Ltd', 'stage' => 'negotiation', 'value' => 15000],
-            ['title' => 'Global Transformation', 'company' => 'Global Services Ltd', 'stage' => 'closed_won', 'value' => 90000],
-        ];
-
-        foreach ($deals as $deal) {
-            Deal::updateOrCreate(
-                ['title' => $deal['title']],
-                [
-                    'company' => $deal['company'],
-                    'stage' => $deal['stage'],
-                    'value' => $deal['value'],
-                    'customer_id' => $customerMap[$deal['company']]->id ?? null,
-                ],
-            );
-        }
-
-        $tasks = [
-            ['title' => 'Follow-up with Acme Corp', 'description' => 'Check on proposal status', 'due_date' => '2024-03-18', 'priority' => 'high', 'task_status' => 'Pending', 'completed' => false, 'user' => 'james.sales@codevocado.com'],
-            ['title' => 'Prepare presentation slides', 'description' => 'For Tech Solutions meeting', 'due_date' => '2024-03-20', 'priority' => 'medium', 'task_status' => 'In Progress', 'completed' => false, 'user' => 'sarah.admin@codevocado.com'],
-            ['title' => 'Update CRM with new contacts', 'description' => 'Import leads from trade show', 'due_date' => '2024-03-19', 'priority' => 'medium', 'task_status' => 'Pending', 'completed' => false, 'user' => 'mike.manager@codevocado.com'],
-            ['title' => 'Send contract to Digital Agency', 'description' => 'Final agreement for review', 'due_date' => '2024-03-17', 'priority' => 'high', 'task_status' => 'Completed', 'completed' => true, 'user' => 'emma.exec@codevocado.com'],
-            ['title' => 'Schedule quarterly review', 'description' => 'With key customers', 'due_date' => '2024-03-25', 'priority' => 'low', 'task_status' => 'Pending', 'completed' => false, 'user' => 'james.sales@codevocado.com'],
-        ];
-
-        foreach ($tasks as $task) {
-            Task::updateOrCreate(
-                ['title' => $task['title']],
-                [
-                    'description' => $task['description'],
-                    'due_date' => $task['due_date'],
-                    'priority' => $task['priority'],
-                    'task_status' => $task['task_status'],
-                    'completed' => $task['completed'],
-                    'assigned_user_id' => $userMap[$task['user']]->id ?? null,
-                ],
-            );
-        }
-
-        $tickets = [
-            ['ticket_number' => 'TKT-001', 'title' => 'Integration issue with payment gateway', 'status' => 'Open', 'priority' => 'High', 'company' => 'Acme Corporation', 'user' => 'james.sales@codevocado.com', 'updated_label' => '2024-03-14'],
-            ['ticket_number' => 'TKT-002', 'title' => 'Feature request: Export to CSV', 'status' => 'In-progress', 'priority' => 'Medium', 'company' => 'Tech Solutions Inc', 'user' => 'sarah.admin@codevocado.com', 'updated_label' => '2024-03-13'],
-            ['ticket_number' => 'TKT-003', 'title' => 'Dashboard loading slowly', 'status' => 'Open', 'priority' => 'High', 'company' => 'Digital Ventures', 'user' => 'mike.manager@codevocado.com', 'updated_label' => '2024-03-14'],
-            ['ticket_number' => 'TKT-004', 'title' => 'User unable to reset password', 'status' => 'Resolved', 'priority' => 'Medium', 'company' => 'Global Services Ltd', 'user' => 'emma.exec@codevocado.com', 'updated_label' => '2024-03-12'],
-        ];
-
-        foreach ($tickets as $ticket) {
-            SupportTicket::updateOrCreate(
-                ['ticket_number' => $ticket['ticket_number']],
-                [
-                    'title' => $ticket['title'],
-                    'status' => $ticket['status'],
-                    'priority' => $ticket['priority'],
-                    'updated_label' => $ticket['updated_label'],
-                    'customer_id' => $customerMap[$ticket['company']]->id ?? null,
-                    'assignee_id' => $userMap[$ticket['user']]->id ?? null,
-                ],
-            );
+        foreach ($activityRows as [$subject, $user, $type, $description]) {
+            Activity::create([
+                'subject_type' => $subject->getMorphClass(),
+                'subject_id' => $subject->id,
+                'user_id' => $user->id,
+                'type' => $type,
+                'description' => $description,
+            ]);
         }
     }
 }

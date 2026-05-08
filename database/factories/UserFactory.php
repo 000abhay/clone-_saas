@@ -31,8 +31,10 @@ class UserFactory extends Factory
             'profile_summary' => fake()->sentence(4),
             'status' => 'active',
             'last_active_at' => now(),
+            'failed_login_attempts' => 0,
+            'locked_until' => null,
             'email_verified_at' => now(),
-            'password' => static::$password ??= Hash::make('password'),
+            'password' => static::$password ??= Hash::make('Password123!'),
             'remember_token' => Str::random(10),
         ];
     }
